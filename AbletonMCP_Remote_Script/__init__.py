@@ -236,8 +236,9 @@ class AbletonMCP(ControlSurface):
                                  "duplicate_to_arrangement", "delete_arrangement_clip",
                                  "set_arrangement_clip_property",
                                  "set_view", "control_arrangement_view",
-                                 "manage_clip_automation",
-                                 "add_notes_to_arrangement_clip",
+                                  "manage_clip_automation",
+                                  "add_clip_automation_point",
+                                  "add_notes_to_arrangement_clip",
                                  "set_device_parameter", "set_device_enabled",
                                  "delete_device", "navigate_preset",
                                  "delete_track",
@@ -352,6 +353,13 @@ class AbletonMCP(ControlSurface):
                             action = params.get("action", "create")
                             pn = params.get("parameter_name", "")
                             result = self._manage_clip_automation(ti, ci, action, pn)
+                        elif command_type == "add_clip_automation_point":
+                            ti = params.get("track_index", 0)
+                            ci = params.get("clip_index", 0)
+                            pn = params.get("parameter_name", "")
+                            t = params.get("time", 0.0)
+                            v = params.get("value", 0.0)
+                            result = self._add_clip_automation_point(ti, ci, pn, t, v)
                         elif command_type == "add_notes_to_arrangement_clip":
                             ti = params.get("track_index", 0)
                             ci = params.get("clip_index", 0)

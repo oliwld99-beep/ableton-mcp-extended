@@ -1,0 +1,149 @@
+{
+  "manifest_version": "0.2",
+  "name": "Producer Pal",
+  "version": "1.4.6",
+  "description": "AI music production assistant for Ableton Live. Generate and edit MIDI clips, control playback, manage tracks, scenes, and the arrangement.",
+  "long_description": "To use: Add the Producer Pal device (Producer_Pal.amxd) to an empty MIDI track in Ableton Live. Ask Claude Desktop (with this extension enabled): \"connect to ableton\".\nRequires Ableton Live 12.3+ with Max for Live (e.g. Ableton Live Suite).",
+  "author": {
+    "name": "Adam Murray",
+    "email": "adam@adammurray.link",
+    "url": "https://adammurray.link"
+  },
+  "homepage": "https://producer-pal.org",
+  "documentation": "https://producer-pal.org",
+  "support": "https://github.com/adamjmurray/producer-pal/discussions",
+  "icon": "producer-pal-logo.png",
+  "screenshots": [
+    "screenshot.png"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "producer-pal-portal.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/producer-pal-portal.js"
+      ],
+      "env": {
+        "MCP_SERVER_ORIGIN": "${user_config.mcp_server_origin}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "Connect",
+      "description": "Connect to Ableton Live and initialize Producer Pal. Call before other ppal-* tools when the user says use/connect to ableton."
+    },
+    {
+      "name": "Context",
+      "description": "Read/write project memory or search configured sample folder for audio files."
+    },
+    {
+      "name": "Read Live Set",
+      "description": "Read Live Set global settings, track/scene overview. Returns overview by default. Use include to add detail."
+    },
+    {
+      "name": "Update Live Set",
+      "description": "Update Live Set global settings or manage locators."
+    },
+    {
+      "name": "Read Track",
+      "description": "Read track settings, clips, and devices. Returns overview by default. Use include to add detail."
+    },
+    {
+      "name": "Create Track",
+      "description": "Create track(s)."
+    },
+    {
+      "name": "Update Track",
+      "description": "Update track(s)."
+    },
+    {
+      "name": "Read Scene",
+      "description": "Read scene settings and clips. Returns overview by default. Use include to add detail."
+    },
+    {
+      "name": "Create Scene",
+      "description": "Create empty scene(s) or capture playing session clips."
+    },
+    {
+      "name": "Update Scene",
+      "description": "Update scene(s)."
+    },
+    {
+      "name": "Read Clip",
+      "description": "Read clip settings, MIDI notes, and audio properties. Returns overview by default. Use include to add detail."
+    },
+    {
+      "name": "Create Clip",
+      "description": "Create MIDI or audio clip(s). Requires slot (session) and/or trackIndex + arrangementStart (arrangement). For audio: use sampleFile (absolute path), otherwise omit sampleFile to create a MIDI clip."
+    },
+    {
+      "name": "Update Clip",
+      "description": "Update clip(s), MIDI notes, and warp settings (audio clips)."
+    },
+    {
+      "name": "Read Device",
+      "description": "Read information about a device, chain, or drum pad by ID or path. Returns overview by default. Use include to add detail."
+    },
+    {
+      "name": "Create Device",
+      "description": "Create a native Live device (instrument, MIDI effect, or audio effect) on a track or inside a chain."
+    },
+    {
+      "name": "Update Device",
+      "description": "Update device(s), chain(s), or drum pad(s)."
+    },
+    {
+      "name": "Delete",
+      "description": "Delete objects. Supports tracks, scenes, clips, devices, and drum pads. Use ids for most types; path for devices/drum pads."
+    },
+    {
+      "name": "Duplicate",
+      "description": "Duplicate an object. Supports tracks, scenes, clips, and devices. Use count for multiple track/scene copies; arrangementStart, locator, or toSlot for clip placement."
+    },
+    {
+      "name": "Select",
+      "description": "Navigate to and select items in Live. Use for \"show me\", \"go to\", \"open\" requests. No args: read current state."
+    },
+    {
+      "name": "Playback",
+      "description": "Control playback of the arrangement and session scenes/clips."
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "mcp_server_origin": {
+      "type": "string",
+      "title": "Ableton device URL",
+      "description": "URL for connecting to the Producer Pal Max for Live device (protocol://host:port). Use http://localhost:[port] for local connections or http://[IP]:[port] for network connections. The port number must match the port in the Max for Live device's advanced settings (default port is 3350). Restart this extension after changing the URL. Default: http://localhost:3350",
+      "required": false,
+      "sensitive": false,
+      "default": "http://localhost:3350"
+    }
+  },
+  "keywords": [
+    "music",
+    "ableton live",
+    "ableton",
+    "production",
+    "producer",
+    "composition",
+    "composer",
+    "assistant",
+    "pal"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adamjmurray/producer-pal"
+  }
+}

@@ -64,6 +64,105 @@ KNOWN_PLUGINS: Dict[str, dict] = {
             "Master": ["Master"],
         },
     },
+    # ── Native Ableton devices used for kick-drum sound design ──
+    "Operator": {
+        "aliases": {
+            "osc a freq": "Osc A Frequency",
+            "osc a tune": "Osc A Tune",
+            "osc a level": "Osc A Level",
+            "osc b freq": "Osc B Frequency",
+            "osc b ratio": "Osc B Ratio",
+            "osc b level": "Osc B Level",
+            "fm amount": "Osc B->Osc A",
+            "filter cutoff": "Filter Frequency",
+            "filter resonance": "Filter Resonance",
+            "pitch env decay": "Env A Decay",
+            "pitch env amount": "Env A->Pitch",
+            "amp env decay": "Env C Decay",
+            "amp env attack": "Env C Attack",
+        },
+        "categories": {
+            "Oscillator A": ["Osc A"],
+            "Oscillator B": ["Osc B"],
+            "Filter": ["Filter"],
+            "Envelope": ["Env"],
+            "LFO": ["LFO"],
+            "Modulation": ["->"],
+        },
+    },
+    "Saturator": {
+        "aliases": {
+            "drive": "Drive",
+            "depth": "Depth",
+            "dc": "DC",
+            "balance": "Balance",
+            "output": "Output",
+            "mix": "Mix",
+            "nonlinear": "Nonlinear",
+        },
+        "categories": {
+            "Drive": ["Drive"],
+            "Tone": ["DC", "Balance", "Offset"],
+            "Output": ["Output", "Mix"],
+        },
+    },
+    "EQ Eight": {
+        "aliases": {
+            "global gain": "Global Gain",
+        },
+        "categories": {
+            "Band 1": ["1 "],
+            "Band 2": ["2 "],
+            "Band 3": ["3 "],
+            "Band 4": ["4 "],
+            "Band 5": ["5 "],
+            "Band 6": ["6 "],
+            "Band 7": ["7 "],
+            "Band 8": ["8 "],
+            "Global": ["Global"],
+        },
+    },
+    "Glue Compressor": {
+        "aliases": {
+            "threshold": "Threshold",
+            "ratio": "Ratio",
+            "attack": "Attack",
+            "release": "Release",
+            "makeup": "Makeup",
+            "range": "Range",
+            "sidechain": "SCC",
+        },
+        "categories": {
+            "Compressor": ["Threshold", "Ratio", "Attack", "Release", "Makeup", "Range"],
+            "Sidechain": ["SCC"],
+        },
+    },
+    "Drum Buss": {
+        "aliases": {
+            "transient": "Transient",
+            "boom": "Boom",
+            "comp": "Compressor",
+            "trim": "Trim",
+            "dry wet": "Dry/Wet",
+        },
+        "categories": {
+            "Drum": ["Transient", "Boom", "Compressor", "Trim"],
+            "Mix": ["Dry/Wet"],
+        },
+    },
+    "Corpus": {
+        "aliases": {
+            "resonator freq": "Frequency",
+            "decay": "Decay",
+            "resonance": "Resonance",
+            "inharmonicity": "Inharmonicity",
+            "output": "Output",
+        },
+        "categories": {
+            "Resonator": ["Frequency", "Decay", "Resonance", "Inharmonicity"],
+            "Output": ["Output"],
+        },
+    },
 }
 
 
