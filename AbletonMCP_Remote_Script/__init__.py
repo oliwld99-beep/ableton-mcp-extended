@@ -465,11 +465,12 @@ class AbletonMCP(ControlSurface):
                 di = params.get("device_index", 0)
                 ci = params.get("chain_index", None)
                 response["result"] = self._get_chain_info(ti, di, ci)
-            elif command_type == "get_drum_pad_info":
+            elif command_type == "get_vst_plugin_info":
                 ti = params.get("track_index", 0)
-                di = params.get("device_index", 0)
-                response["result"] = self._get_drum_pad_info(ti, di)
-            else:
+                response["result"] = self._get_vst_plugin_info(ti)
+            elif command_type == "get_track_devices":
+                ti = params.get("track_index", 0)
+                response["result"] = self._get_track_devices(ti)
                 response["status"] = "error"
                 response["message"] = "Unknown command: " + command_type
         except Exception as e:
@@ -680,7 +681,31 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error setting track name: " + str(e))
             raise
 
-    def _get_track_volume(self, track_index):
+    def _get_track_devices(self, track_index):
+        """Get all devices on a track with basic info."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            devices = []
+            for di, device in enumerate(track.devices):
+                devices.append({
+                    "device_index": di + 1,
+                    "name": getattr(device, "name", ""),
+                    "class_name": getattr(device, "class_name", ""),
+                    "parameter_count": len(device.parameters) if hasattr(device, "parameters") else 0,
+                    "can_have_chains": getattr(device, "can_have_chains", False),
+                })
+            return {
+                "track_index": track_index,
+                "track_name": track.name,
+                "device_count": len(track.devices),
+                "devices": devices,
+            }
+        except Exception as e:
+            self.log_message("Error getting track devices: " + str(e))
+            raise
+
         """Get current volume and panning for a track's mixer fader."""
         try:
             all_tracks = list(self._song.tracks) + list(self._song.return_tracks)
@@ -1512,7 +1537,88 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error managing clip automation: " + str(e))
             raise
 
-    # ── Device command handlers ──────────────────────────────────────
+    # ── Device command handlers ──────────────────────
+
+    def _get_vst_plugin_info(self, track_index):
+        """Return detailed VST/AU plugin info for all devices on a track.
+        
+        Scans all devices on the given track and returns VST/AU-specific
+        information including class name, whether it's an external plugin,
+        and plugin type hints.
+        """
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            
+            track = self._song.tracks[track_index]
+            devices_info = []
+            
+            for di, device in enumerate(track.devices):
+                class_name = getattr(device, "class_name", "")
+                name = getattr(device, "name", "")
+                
+                # Determine if it's likely a VST/AU plugin
+                is_external = bool(
+                    "vst" in class_name.lower() 
+                    or "vst3" in class_name.lower()
+                    or "au" in class_name.lower()[:2]
+                    or "audio unit" in class_name.lower()
+                    or "plug-in" in class_name.lower()
+                    or "component" in class_name.lower()
+                ) or (
+                    hasattr(device, "can_have_chains") and not device.can_have_chains
+                )
+                
+                # Check for nested devices (rack contents)
+                nested_devices = []
+                if hasattr(device, "can_have_chains") and device.can_have_chains:
+                    for ci, chain in enumerate(device.chains):
+                        for ndi, sub_device in enumerate(chain.devices):
+                            sub_class = getattr(sub_device, "class_name", "")
+                            nested_devices.append({
+                                "device_index": ndi,
+                                "chain_index": ci,
+                                "name": getattr(sub_device, "name", ""),
+                                "class_name": sub_class,
+                                "is_vst": "vst" in sub_class.lower() or "au" in sub_class.lower()[:2],
+                            })
+                
+                device_info = {
+                    "device_index": di + 1,
+                    "name": name,
+                    "class_name": class_name,
+                    "is_vst_plugin": is_external or "vst" in class_name.lower(),
+                    "plugin_type": self._detect_plugin_type(class_name),
+                    "parameter_count": len(device.parameters) if hasattr(device, "parameters") else 0,
+                    "can_have_chains": getattr(device, "can_have_chains", False),
+                    "nested_devices": nested_devices if nested_devices else None,
+                }
+                devices_info.append(device_info)
+            
+            return {
+                "track_index": track_index,
+                "track_name": track.name,
+                "device_count": len(track.devices),
+                "devices": devices_info,
+            }
+        except Exception as e:
+            self.log_message("Error getting VST plugin info: " + str(e))
+            self.log_message(traceback.format_exc())
+            raise
+    def _detect_plugin_type(self, class_name):
+        """Detect plugin type from class name."""
+        cn = class_name.lower()
+        if "vst3" in cn:
+            return "VST3"
+        elif "vst2" in cn or "vst" in cn:
+            return "VST2"
+        elif "au" == cn[:2] or "audio unit" in cn:
+            return "Audio Unit"
+        elif "aax" in cn:
+            return "AAX"
+        elif "clap" in cn:
+            return "CLAP"
+        return "Built-in/Unknown"
 
     def _get_device_parameters(self, track_index, device_index, chain_index=None, show_all=False):
         """Return parameter list for a device."""

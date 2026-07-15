@@ -1,16 +1,20 @@
 # ableton_mcp_server.py
 from mcp.server.fastmcp import FastMCP, Context
-import socket
-import json
-import logging
-import re
-import threading
-import time
-from dataclasses import dataclass
+import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Dict, Any, List, Union
+from typing import AsyncIterator, Dict, Any, List, Union, Optional
 
-# Configure logging
+# ── Configuration ──────────────────────────────────────────────────
+# These can be overridden via environment variables:
+#   ABLETON_HOST     (default: localhost)
+#   ABLETON_PORT     (default: 9877)
+#   ABLETON_TIMEOUT  (default: 15.0)
+DEFAULT_ABLETON_HOST = os.environ.get("ABLETON_HOST", "localhost")
+DEFAULT_ABLETON_PORT = int(os.environ.get("ABLETON_PORT", "9877"))
+DEFAULT_SOCKET_TIMEOUT = float(os.environ.get("ABLETON_TIMEOUT", "15.0"))
+
+# ── Logging ─────────────────────────────────────────────────────────
+# ── Logging ─────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("AbletonMCPServer")
@@ -49,7 +53,7 @@ class AbletonConnection:
     def receive_full_response(self, sock, buffer_size=8192):
         """Receive the complete response, potentially in multiple chunks"""
         chunks = []
-        sock.settimeout(15.0)  # Increased timeout for operations that might take longer
+        sock.settimeout(DEFAULT_SOCKET_TIMEOUT)  # Configurable timeout
         
         try:
             while True:
@@ -135,7 +139,7 @@ class AbletonConnection:
                 time.sleep(0.1)  # 100ms delay
             
             # Set timeout based on command type
-            timeout = 15.0 if is_modifying_command else 10.0
+            timeout = DEFAULT_SOCKET_TIMEOUT if is_modifying_command else max(10.0, DEFAULT_SOCKET_TIMEOUT - 5.0)
             self.sock.settimeout(timeout)
             
             # Receive the response
@@ -341,7 +345,7 @@ def get_ableton_connection():
         for attempt in range(1, max_attempts + 1):
             try:
                 logger.info(f"Connecting to Ableton (attempt {attempt}/{max_attempts})...")
-                _ableton_connection = AbletonConnection(host="localhost", port=9877)
+                _ableton_connection = AbletonConnection(host=DEFAULT_ABLETON_HOST, port=DEFAULT_ABLETON_PORT)
                 if _ableton_connection.connect():
                     logger.info("Created new persistent connection to Ableton")
                     
@@ -1099,10 +1103,153 @@ def load_external_plugin(
             return (
                 "Loaded external plugin '{0}' on track {1} (matched '{2}')."
             ).format(chosen.get("name", "?"), track_index, plugin_name)
-        return "Failed to load external plugin '{0}'.".format(chosen.get("name", "?"))
+
+
+@mcp.tool()
+def get_vst_plugin_info(
+    ctx: Context,
+    track_index: int,
+) -> str:
+    """Get detailed information about all VST/AU/drum devices on a track.
+
+    Scans every device on the track and reports:
+    - Device name and class name (e.g., 'PluginDevice' for VST)
+    - Plugin type detection (VST2, VST3, Audio Unit, AAX, CLAP, or Built-in)
+    - Parameter count
+    - Nested devices inside racks
+
+    This is useful before calling get_device_parameters or set_device_parameter,
+    because it tells you the exact class_name and plugin_type for each device.
+
+    Parameters:
+    - track_index: Track number (1-based).
+    """
+    try:
+        ableton = get_ableton_connection()
+        ti = _to_zero_based(track_index, "track_index")
+        result = ableton.send_command("get_vst_plugin_info", {"track_index": ti})
+
+        track_name = result.get("track_name", "?")
+        devices = result.get("devices", [])
+
+        if not devices:
+            return f"Track {track_index} ('{track_name}'): No devices found."
+
+        lines = [f"=== Track {track_index}: '{track_name}' — {len(devices)} device(s) ===", ""]
+        for dev in devices:
+            lines.append("  {0}. {1}{2}".format(
+                dev["device_index"],
+                dev["name"],
+                " [VST]" if dev.get("is_vst_plugin") else "",
+            ))
+            lines.append("     Class: {0} | Type: {1} | Params: {2}".format(
+                dev["class_name"],
+                dev["plugin_type"],
+                dev["parameter_count"],
+            ))
+            nested = dev.get("nested_devices")
+            if nested:
+                for nd in nested:
+                    lines.append("     ├─ Chain {0}: {1} ({2})".format(
+                        nd["chain_index"] + 1,
+                        nd["name"],
+                        nd["class_name"],
+                    ))
+
+        return "\n".join(lines)
     except Exception as e:
-        logger.error(f"Error loading external plugin: {str(e)}")
-        return f"Error loading external plugin: {str(e)}"
+        logger.error(f"Error getting VST plugin info: {str(e)}")
+        return f"Error getting VST plugin info: {str(e)}"
+
+
+@mcp.tool()
+def get_track_devices(
+    ctx: Context,
+    track_index: int,
+) -> str:
+    """List all devices on a track with their index, name, and class.
+
+    Parameters:
+    - track_index: Track number (1-based).
+    """
+    try:
+        ableton = get_ableton_connection()
+        ti = _to_zero_based(track_index, "track_index")
+        result = ableton.send_command("get_track_devices", {"track_index": ti})
+
+        track_name = result.get("track_name", "?")
+        devices = result.get("devices", [])
+
+        if not devices:
+            return f"Track {track_index} ('{track_name}'): No devices."
+
+        lines = [f"=== Track {track_index}: '{track_name}' — {len(devices)} device(s) ===", ""]
+        for dev in devices:
+            chains = "[has chains]" if dev.get("can_have_chains") else ""
+            lines.append("  {0}. {1} ({2}) {3}".format(
+                dev["device_index"],
+                dev["name"],
+                dev["class_name"],
+                chains,
+            ))
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error getting track devices: {str(e)}")
+        return f"Error getting track devices: {str(e)}"
+
+
+@mcp.tool()
+def get_arrangement_device_clip_parameters(
+    ctx: Context,
+    track_index: int,
+    device_index: int,
+    clip_index: int = 0,
+) -> str:
+    """Get automatable parameters for a device on an arrangement clip.
+
+    Useful for understanding which parameters can be automated before
+    calling manage_clip_automation.
+
+    Parameters:
+    - track_index: Track number (1-based).
+    - device_index: Device number (1-based).
+    - clip_index: Clip position (1-based, 0 = all clips).
+    """
+    try:
+        ableton = get_ableton_connection()
+        ti = _to_zero_based(track_index, "track_index")
+        di = _to_zero_based(device_index, "device_index")
+        ci = 0 if clip_index == 0 else _to_zero_based(clip_index, "clip_index")
+
+        # First get device parameters
+        result = ableton.send_command("get_device_parameters", {
+            "track_index": ti,
+            "device_index": di,
+            "chain_index": None,
+            "show_all": True,
+        })
+
+        device_name = result.get("device_name", "Unknown")
+        params = result.get("parameters", [])
+
+        if not params:
+            return f"Device '{device_name}' has no automatable parameters."
+
+        lines = [f"=== '{device_name}' — {len(params)} automatable parameter(s) ===", ""]
+        for p in params:
+            automated = " [automated]" if not p.get("is_enabled", True) else ""
+            lines.append("  {0}. {1}: {2} (range {3:.2f}-{4:.2f}){5}".format(
+                p["index"] + 1,
+                p["name"],
+                p["display_value"],
+                p["min"],
+                p["max"],
+                automated,
+            ))
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error getting device clip parameters: {str(e)}")
+        return f"Error getting device clip parameters: {str(e)}"
 
 
 @mcp.tool()

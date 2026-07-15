@@ -1,15 +1,20 @@
-import os
-from pathlib import Path
-from datetime import datetime
-from fuzzywuzzy import fuzz
+from typing import Union
+from mcp.types import TextContent
 
 
-class ElevenLabsMcpError(Exception):
-    pass
+# ── Error helpers ──────────────────────────────────────────────────
 
+def make_error(error_text: str) -> TextContent:
+    """Return an error TextContent instead of raising an exception.
 
-def make_error(error_text: str):
-    raise ElevenLabsMcpError(error_text)
+    Tools that call this should check if the return value has
+    type="text" with an error prefix, and return it immediately.
+    """
+    from mcp.types import TextContent
+    return TextContent(
+        type="text",
+        text=f"Error: {error_text}",
+    )
 
 
 def is_file_writeable(path: Path) -> bool:
@@ -30,7 +35,7 @@ def make_output_file(
 
 def make_output_path(
     output_directory: str | None, base_path: str | None = None
-) -> Path:
+) -> Path | TextContent:
     output_path = None
     if output_directory is None:
         output_path = Path.home() / "Desktop"
@@ -39,7 +44,7 @@ def make_output_path(
     else:
         output_path = Path(os.path.expanduser(output_directory))
     if not is_file_writeable(output_path):
-        make_error(f"Directory ({output_path}) is not writeable")
+        return make_error(f"Directory ({output_path}) is not writeable")
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path
 
@@ -110,9 +115,9 @@ def check_audio_file(path: Path) -> bool:
     return path.suffix.lower() in audio_extensions
 
 
-def handle_input_file(file_path: str, audio_content_check: bool = True) -> Path:
+def handle_input_file(file_path: str, audio_content_check: bool = True) -> Path | TextContent:
     if not os.path.isabs(file_path) and not os.environ.get("ELEVENLABS_MCP_BASE_PATH"):
-        make_error(
+        return make_error(
             "File path must be an absolute path if ELEVENLABS_MCP_BASE_PATH is not set"
         )
     path = Path(file_path)
@@ -121,15 +126,15 @@ def handle_input_file(file_path: str, audio_content_check: bool = True) -> Path:
         similar_files = try_find_similar_files(path.name, parent_directory)
         similar_files_formatted = ",".join([str(file) for file in similar_files])
         if similar_files:
-            make_error(
+            return make_error(
                 f"File ({path}) does not exist. Did you mean any of these files: {similar_files_formatted}?"
             )
-        make_error(f"File ({path}) does not exist")
+        return make_error(f"File ({path}) does not exist")
     elif not path.exists():
-        make_error(f"File ({path}) does not exist")
+        return make_error(f"File ({path}) does not exist")
     elif not path.is_file():
-        make_error(f"File ({path}) is not a file")
+        return make_error(f"File ({path}) is not a file")
 
     if audio_content_check and not check_audio_file(path):
-        make_error(f"File ({path}) is not an audio or video file")
+        return make_error(f"File ({path}) is not an audio or video file")
     return path

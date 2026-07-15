@@ -1,4 +1,12 @@
 # AbletonMCP/__init__.py
+# ╔══════════════╗
+# ║  DEPRECATION NOTICE                                                        ║
+# ║  This hybrid TCP/UDP server is deprecated.                                 ║
+# ║  Use the canonical AbletonMCP_Remote_Script (single TCP server on port     ║
+# ║  9877) instead — it has a complete command set and is actively maintained. ║
+# ║                                                                             ║
+# ║  Kept here for reference only. Will be removed in a future release.        ║
+# ╚══════════════╝
 from __future__ import absolute_import, print_function, unicode_literals
 
 from _Framework.ControlSurface import ControlSurface
@@ -24,6 +32,7 @@ class AbletonMCP(ControlSurface):
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
         self.log_message("AbletonMCP: Initializing (Hybrid TCP/UDP)...")
+        self.log_message("WARNING: This hybrid TCP/UDP server is DEPRECATED. Use AbletonMCP_Remote_Script instead.")
         
         self._song = self.song()
         self.running = False # Set to True once servers start
@@ -39,7 +48,7 @@ class AbletonMCP(ControlSurface):
         self.start_udp_server() 
         
         self.log_message("AbletonMCP: Initialized.")
-        self.show_message(f"AbletonMCP: TCP on {TCP_PORT}, UDP on {UDP_PORT}")
+        self.show_message(f"AbletonMCP: TCP on {TCP_PORT}, UDP on {UDP_PORT} (DEPRECATED - use standard Remote Script)")
     
     def disconnect(self):
         self.log_message("AbletonMCP: Disconnecting...")
@@ -374,38 +383,145 @@ class AbletonMCP(ControlSurface):
             self.log_message(f"Error in _batch_set_device_parameters: {e}\n{traceback.format_exc()}")
             return {"error": str(e)}
             
-    # Placeholder for other command implementations that should be present
-    def _create_midi_track(self, index): self.log_message("_create_midi_track called"); return {"status": "ok_placeholder"}
-    def _set_track_name(self, track_index, name): self.log_message("_set_track_name called"); return {"status": "ok_placeholder"}
-    def _create_clip(self, track_index, clip_index, length): self.log_message("_create_clip called"); return {"status": "ok_placeholder"}
-    def _add_notes_to_clip(self, track_index, clip_index, notes): self.log_message("_add_notes_to_clip called"); return {"status": "ok_placeholder"}
-    def _set_clip_name(self, track_index, clip_index, name): self.log_message("_set_clip_name called"); return {"status": "ok_placeholder"}
-    def _set_tempo(self, tempo): self.log_message("_set_tempo called"); self._song.tempo = tempo; return {"tempo": self._song.tempo}
-    def _fire_clip(self, track_index, clip_index): self.log_message("_fire_clip called"); return {"status": "ok_placeholder"}
-    def _stop_clip(self, track_index, clip_index): self.log_message("_stop_clip called"); return {"status": "ok_placeholder"}
-    def _start_playback(self): self.log_message("_start_playback called"); self._song.start_playing(); return {"playing": True}
-    def _stop_playback(self): self.log_message("_stop_playback called"); self._song.stop_playing(); return {"playing": False}
-    def _load_instrument_or_effect(self, track_index, item_uri): self.log_message("_load_instrument_or_effect called"); return {"status": "ok_placeholder"}
-    def _add_clip_envelope_point(self, track_index, clip_index, device_index, parameter_index, time_val, value, curve_type): self.log_message("_add_clip_envelope_point called"); return {"status": "ok_placeholder"}
-    def _clear_clip_envelope(self, track_index, clip_index, device_index, parameter_index): self.log_message("_clear_clip_envelope called"); return {"status": "ok_placeholder"}
-    def _create_scene(self, index): self.log_message("_create_scene called"); return {"status": "ok_placeholder"}
-    def _set_scene_name(self, index, name): self.log_message("_set_scene_name called"); return {"status": "ok_placeholder"}
-    def _delete_scene(self, index): self.log_message("_delete_scene called"); return {"status": "ok_placeholder"}
-    def _fire_scene(self, index): self.log_message("_fire_scene called"); return {"status": "ok_placeholder"}
-    def _batch_edit_notes_in_clip(self, track_index, clip_index, note_ids, note_data_array): self.log_message("_batch_edit_notes_in_clip called"); return {"status": "ok_placeholder"}
-    def _delete_notes_from_clip(self, track_index, clip_index, from_time, to_time, from_pitch, to_pitch): self.log_message("_delete_notes_from_clip called"); return {"status": "ok_placeholder"}
-    def _transpose_notes_in_clip(self, track_index, clip_index, semitones, from_time, to_time, from_pitch, to_pitch): self.log_message("_transpose_notes_in_clip called"); return {"status": "ok_placeholder"}
-    def _create_audio_track(self, index): self.log_message("_create_audio_track called"); return {"status": "ok_placeholder"}
-    def _set_clip_loop_parameters(self, track_index, clip_index, loop_start, loop_end, loop_enabled): self.log_message("_set_clip_loop_parameters called"); return {"status": "ok_placeholder"}
-    def _set_clip_follow_action(self, track_index, clip_index, action, target_clip, chance, time_val): self.log_message("_set_clip_follow_action called"); return {"status": "ok_placeholder"}
-    def _quantize_notes_in_clip(self, track_index, clip_index, grid_size, strength, from_time, to_time, from_pitch, to_pitch): self.log_message("_quantize_notes_in_clip called"); return {"status": "ok_placeholder"}
-    def _randomize_note_timing(self, track_index, clip_index, amount, from_time, to_time, from_pitch, to_pitch): self.log_message("_randomize_note_timing called"); return {"status": "ok_placeholder"}
-    def _set_note_probability(self, track_index, clip_index, probability, from_time, to_time, from_pitch, to_pitch): self.log_message("_set_note_probability called"); return {"status": "ok_placeholder"}
-    def _import_audio_file(self, uri, track_index, clip_index, create_track_if_needed): self.log_message("_import_audio_file called"); return {"status": "ok_placeholder"}
-    def _set_track_level(self, track_index, level): self.log_message("_set_track_level called"); return {"status": "ok_placeholder"}
-    def _set_track_pan(self, track_index, pan): self.log_message("_set_track_pan called"); return {"status": "ok_placeholder"}
-    def _get_clip_envelope(self, track_index, clip_index, device_index, parameter_index): self.log_message("_get_clip_envelope called"); return {"status": "placeholder_no_data"}
-    def _get_notes_from_clip(self, track_index, clip_index): self.log_message("_get_notes_from_clip called"); return {"status": "placeholder_no_data"}
-    def get_browser_tree(self, category_type="all"): self.log_message("get_browser_tree called"); return {"status": "placeholder_no_data"}
-    def get_browser_items_at_path(self, path): self.log_message("get_browser_items_at_path called"); return {"status": "placeholder_no_data"}
-    def _get_scenes_info(self): self.log_message("_get_scenes_info called"); return {"status": "placeholder_no_data"}
+    # ── DEPRECATED placeholders ──────────────────────────────────────
+    # These commands are NOT implemented in the hybrid server.
+    # Use the canonical AbletonMCP_Remote_Script instead.
+
+    def _create_midi_track(self, index):
+        self.log_message("_create_midi_track called — NOT IMPLEMENTED (use AbletonMCP_Remote_Script)")
+        return {"error": "Not implemented in hybrid server. Use the canonical AbletonMCP_Remote_Script."}
+
+    def _set_track_name(self, track_index, name):
+        self.log_message("_set_track_name called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _create_clip(self, track_index, clip_index, length):
+        self.log_message("_create_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _add_notes_to_clip(self, track_index, clip_index, notes):
+        self.log_message("_add_notes_to_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_clip_name(self, track_index, clip_index, name):
+        self.log_message("_set_clip_name called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_tempo(self, tempo):
+        self.log_message("_set_tempo called")
+        self._song.tempo = tempo
+        return {"tempo": self._song.tempo}
+
+    def _fire_clip(self, track_index, clip_index):
+        self.log_message("_fire_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _stop_clip(self, track_index, clip_index):
+        self.log_message("_stop_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _start_playback(self):
+        self.log_message("_start_playback called")
+        self._song.start_playing()
+        return {"playing": True}
+
+    def _stop_playback(self):
+        self.log_message("_stop_playback called")
+        self._song.stop_playing()
+        return {"playing": False}
+
+    def _load_instrument_or_effect(self, track_index, item_uri):
+        self.log_message("_load_instrument_or_effect called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _add_clip_envelope_point(self, track_index, clip_index, device_index, parameter_index, time_val, value, curve_type):
+        self.log_message("_add_clip_envelope_point called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _clear_clip_envelope(self, track_index, clip_index, device_index, parameter_index):
+        self.log_message("_clear_clip_envelope called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _create_scene(self, index):
+        self.log_message("_create_scene called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_scene_name(self, index, name):
+        self.log_message("_set_scene_name called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _delete_scene(self, index):
+        self.log_message("_delete_scene called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _fire_scene(self, index):
+        self.log_message("_fire_scene called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _batch_edit_notes_in_clip(self, track_index, clip_index, note_ids, note_data_array):
+        self.log_message("_batch_edit_notes_in_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _delete_notes_from_clip(self, track_index, clip_index, from_time, to_time, from_pitch, to_pitch):
+        self.log_message("_delete_notes_from_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _transpose_notes_in_clip(self, track_index, clip_index, semitones, from_time, to_time, from_pitch, to_pitch):
+        self.log_message("_transpose_notes_in_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _create_audio_track(self, index):
+        self.log_message("_create_audio_track called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_clip_loop_parameters(self, track_index, clip_index, loop_start, loop_end, loop_enabled):
+        self.log_message("_set_clip_loop_parameters called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_clip_follow_action(self, track_index, clip_index, action, target_clip, chance, time_val):
+        self.log_message("_set_clip_follow_action called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _quantize_notes_in_clip(self, track_index, clip_index, grid_size, strength, from_time, to_time, from_pitch, to_pitch):
+        self.log_message("_quantize_notes_in_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _randomize_note_timing(self, track_index, clip_index, amount, from_time, to_time, from_pitch, to_pitch):
+        self.log_message("_randomize_note_timing called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_note_probability(self, track_index, clip_index, probability, from_time, to_time, from_pitch, to_pitch):
+        self.log_message("_set_note_probability called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _import_audio_file(self, uri, track_index, clip_index, create_track_if_needed):
+        self.log_message("_import_audio_file called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_track_level(self, track_index, level):
+        self.log_message("_set_track_level called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _set_track_pan(self, track_index, pan):
+        self.log_message("_set_track_pan called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _get_clip_envelope(self, track_index, clip_index, device_index, parameter_index):
+        self.log_message("_get_clip_envelope called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _get_notes_from_clip(self, track_index, clip_index):
+        self.log_message("_get_notes_from_clip called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def get_browser_tree(self, category_type="all"):
+        self.log_message("get_browser_tree called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def get_browser_items_at_path(self, path):
+        self.log_message("get_browser_items_at_path called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}
+
+    def _get_scenes_info(self):
+        self.log_message("_get_scenes_info called — NOT IMPLEMENTED")
+        return {"error": "Not implemented in hybrid server."}

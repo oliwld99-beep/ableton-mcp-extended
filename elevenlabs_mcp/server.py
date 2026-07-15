@@ -77,9 +77,9 @@ def text_to_speech(
     speed: float = 1.0,
 ) -> TextContent:
     if not text:
-        make_error("Text is required.")
+        return make_error("Text is required.")
     if voice_id and voice_name:
-        make_error("voice_id and voice_name cannot both be provided.")
+        return make_error("voice_id and voice_name cannot both be provided.")
 
     voice = None
     if voice_id:
@@ -87,14 +87,13 @@ def text_to_speech(
     elif voice_name:
         voices = client.voices.search(search=voice_name)
         if not voices.voices:
-            make_error("No voices found with that name.")
+            return make_error("No voices found with that name.")
         voice = next((v for v in voices.voices if v.name == voice_name), None)
         if not voice:
-            make_error(f"Voice with name: {voice_name} does not exist.")
+            return make_error(f"Voice with name: {voice_name} does not exist.")
 
-    chosen_voice_id = voice.voice_id if voice else DEFAULT_VOICE_ID
-    output_path = make_output_path(output_directory, base_path)
-    output_file_name = make_output_file("tts", text, output_path, "mp3")
+    if isinstance(output_path, TextContent):
+        return output_path
 
     audio_data = client.text_to_speech.convert(
         text=text,
@@ -147,10 +146,15 @@ def speech_to_text(
     output_directory: str = None,
 ) -> TextContent:
     if not save_transcript_to_file and not return_transcript_to_client_directly:
-        make_error("Must save transcript to file or return it to the client directly.")
+        return make_error("Must save transcript to file or return it to the client directly.")
     file_path = handle_input_file(input_file_path)
+    if isinstance(file_path, TextContent):
+        return file_path
     if save_transcript_to_file:
-        output_path = make_output_path(output_directory, base_path)
+    if isinstance(output_path, TextContent):
+        return output_path
+        if isinstance(output_path, TextContent):
+            return output_path
         output_file_name = make_output_file("stt", file_path.name, output_path, "txt")
     with file_path.open("rb") as f:
         audio_bytes = f.read()
@@ -194,8 +198,10 @@ def text_to_sound_effects(
     text: str, duration_seconds: float = 2.0, output_directory: str = DEFAULT_OUTPUT_DIR
 ) -> list[TextContent]:
     if duration_seconds < 0.5 or duration_seconds > 5:
-        make_error("Duration must be between 0.5 and 5 seconds")
+        return make_error("Duration must be between 0.5 and 5 seconds")
     output_path = make_output_path(output_directory, base_path)
+    if isinstance(output_path, TextContent):
+        return output_path
     output_file_name = make_output_file("sfx", text, output_path, "mp3")
 
     audio_data = client.text_to_sound_effects.convert(
@@ -263,8 +269,13 @@ def get_voice(voice_id: str) -> McpVoice:
 def voice_clone(
     name: str, files: list[str], description: str = None
 ) -> TextContent:
-    input_files = [str(handle_input_file(file).absolute()) for file in files]
-    voice = client.clone(name=name, description=description, files=input_files)
+    input_files_resolved = []
+    for file in files:
+        resolved = handle_input_file(file)
+        if isinstance(resolved, TextContent):
+            return resolved
+        input_files_resolved.append(str(resolved.absolute()))
+    voice = client.clone(name=name, description=description, files=input_files_resolved)
     return TextContent(
         type="text",
         text=f"""Voice cloned successfully: Name: {voice.name}
@@ -285,7 +296,11 @@ def isolate_audio(
     input_file_path: str, output_directory: str = None
 ) -> list[TextContent]:
     file_path = handle_input_file(input_file_path)
+    if isinstance(file_path, TextContent):
+        return [file_path]
     output_path = make_output_path(output_directory, base_path)
+    if isinstance(output_path, TextContent):
+        return [output_path]
     output_file_name = make_output_file("iso", file_path.name, output_path, "mp3")
     with file_path.open("rb") as f:
         audio_bytes = f.read()
@@ -413,9 +428,9 @@ def add_knowledge_base_to_agent(
         param for param in [url, input_file_path, text] if param is not None
     ]
     if len(provided_params) == 0:
-        make_error("Must provide either a URL, a file, or text")
+        return make_error("Must provide either a URL, a file, or text")
     if len(provided_params) > 1:
-        make_error("Must provide exactly one of: URL, file, or text")
+        return make_error("Must provide exactly one of: URL, file, or text")
 
     if text is not None:
         text_bytes = text.encode("utf-8")
@@ -423,9 +438,8 @@ def add_knowledge_base_to_agent(
         text_io.name = "text.txt"
         text_io.content_type = "text/plain"
         file = text_io
-    elif input_file_path is not None:
-        path = handle_input_file(file_path=input_file_path, audio_content_check=False)
-        file = open(path, "rb")
+        if isinstance(path, TextContent):
+            return path
 
     response = client.conversational_ai.add_to_knowledge_base(
         name=knowledge_base_name,
@@ -504,15 +518,19 @@ def speech_to_speech(
     voices = client.voices.search(search=voice_name)
 
     if len(voices.voices) == 0:
-        make_error("No voice found with that name.")
+        return make_error("No voice found with that name.")
 
     voice = next((v for v in voices.voices if v.name == voice_name), None)
 
     if voice is None:
-        make_error(f"Voice with name: {voice_name} does not exist.")
+        return make_error(f"Voice with name: {voice_name} does not exist.")
 
     file_path = handle_input_file(input_file_path)
+    if isinstance(file_path, TextContent):
+        return file_path
     output_path = make_output_path(output_directory, base_path)
+    if isinstance(output_path, TextContent):
+        return output_path
     output_file_name = make_output_file("sts", file_path.name, output_path, "mp3")
 
     with file_path.open("rb") as f:
@@ -550,7 +568,7 @@ def text_to_voice(
     output_directory: str = None,
 ) -> TextContent:
     if voice_description == "":
-        make_error("Voice description is required.")
+        return make_error("Voice description is required.")
 
     previews = client.text_to_voice.create_previews(
         voice_description=voice_description,
@@ -732,10 +750,8 @@ def list_phone_numbers() -> TextContent:
 
 
 @mcp.tool(description="Play an audio file. Supports WAV and MP3 formats.")
-def play_audio(input_file_path: str) -> TextContent:
-    file_path = handle_input_file(input_file_path)
-    play(open(file_path, "rb").read(), use_ffmpeg=False)
-    return TextContent(type="text", text=f"Successfully played audio file: {file_path}")
+    if isinstance(file_path, TextContent):
+        return file_path
 
 
 def main():
