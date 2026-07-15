@@ -1,6 +1,13 @@
 # ableton_mcp_server.py
 from mcp.server.fastmcp import FastMCP, Context
 import os
+import re
+import json
+import time
+import socket
+import logging
+import threading
+from dataclasses import dataclass
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Dict, Any, List, Union, Optional
 
@@ -1103,6 +1110,14 @@ def load_external_plugin(
             return (
                 "Loaded external plugin '{0}' on track {1} (matched '{2}')."
             ).format(chosen.get("name", "?"), track_index, plugin_name)
+
+        return (
+            "Failed to load external plugin '{0}' on track {1}. "
+            "The Remote Script did not confirm loading."
+        ).format(chosen.get("name", "?"), track_index)
+    except Exception as e:
+        logger.error(f"Error loading external plugin: {str(e)}")
+        return f"Error loading external plugin: {str(e)}"
 
 
 @mcp.tool()
@@ -2315,6 +2330,245 @@ def navigate_device_preset(
     except Exception as e:
         logger.error(f"Error navigating preset: {str(e)}")
         return f"Error navigating preset: {str(e)}"
+
+
+# ── Spectral analysis tools ─────────────────────────────────────────
+
+_GENRE_HINT = (
+    "genre for context-aware EQ (techno, house, hip-hop, trap, lo-fi, dnb, "
+    "pop, rock, orchestral, ambient; default = generic)"
+)
+_INSTRUMENT_HINT = (
+    "instrument/role for context (kick, sub, bass, snare, hats, perc, vocal, "
+    "synth, pad, lead, pluck, guitar, keys, fullmix, master; default = other)"
+)
+
+
+@mcp.tool()
+def analyze_audio_file(
+    ctx: Context,
+    file_path: str,
+    genre: str = "default",
+    instrument: str = "other",
+    format: str = "report",
+) -> str:
+    """Analyze an audio file (WAV/AIFF/FLAC/...) and suggest EQ moves.
+
+    Performs a real FFT-based spectral analysis: level metrics
+    (peak/RMS/crest), spectral centroid/flatness/tilt, energy per region,
+    narrow-resonance detection, and concrete, genre/instrument-aware EQ
+    suggestions (frequency, gain, Q, filter type).
+
+    WAV works out of the box. Other formats require the optional
+    'soundfile' dependency.
+
+    Parameters:
+    - file_path: Absolute path to the audio file.
+    - genre: %s.
+    - instrument: %s.
+    - format: 'report' for readable text, 'json' for structured data.
+    """ % (_GENRE_HINT, _INSTRUMENT_HINT)
+    try:
+        from MCP_Server import spectrum_analyzer as sa
+    except ImportError as e:
+        return (
+            "Error: spectral analysis needs numpy. Install with: "
+            "pip install numpy (and 'soundfile' for non-WAV files). "
+            f"Details: {e}"
+        )
+    try:
+        result = sa.analyze(file_path, genre=genre, instrument=instrument)
+        if format.lower() == "json":
+            return json.dumps(result.to_dict(), indent=2)
+        return sa.format_report(result)
+    except FileNotFoundError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        logger.error(f"Error analyzing audio file: {str(e)}")
+        return f"Error analyzing audio file: {str(e)}"
+
+
+@mcp.tool()
+def analyze_clip_spectrum(
+    ctx: Context,
+    track_index: int,
+    clip_index: int,
+    genre: str = "default",
+    instrument: str = "other",
+    format: str = "report",
+) -> str:
+    """Analyze the audio sample behind a session clip and suggest EQ moves.
+
+    Reads the clip's underlying sample file path from Ableton, then runs
+    the same FFT-based spectral analysis as analyze_audio_file. Only works
+    on audio clips (not MIDI).
+
+    Parameters:
+    - track_index: Track number (1-based).
+    - clip_index: Clip slot number (1-based).
+    - genre: %s.
+    - instrument: %s.
+    - format: 'report' for readable text, 'json' for structured data.
+    """ % (_GENRE_HINT, _INSTRUMENT_HINT)
+    try:
+        from MCP_Server import spectrum_analyzer as sa
+    except ImportError as e:
+        return (
+            "Error: spectral analysis needs numpy. Install with: "
+            f"pip install numpy. Details: {e}"
+        )
+    try:
+        ableton = get_ableton_connection()
+        ti = _to_zero_based(track_index, "track_index")
+        ci = _to_zero_based(clip_index, "clip_index")
+        info = ableton.send_command(
+            "get_clip_sample_path", {"track_index": ti, "clip_index": ci}
+        )
+        if not isinstance(info, dict) or info.get("error"):
+            reason = info.get("error", "unknown") if isinstance(info, dict) else "unknown"
+            return f"Cannot analyze clip {track_index}/{clip_index}: {reason}"
+        file_path = info.get("file_path", "")
+        if not file_path:
+            return (
+                f"Clip {track_index}/{clip_index} ('{info.get('name', '?')}') has no "
+                "sample file path (it may be a recorded/frozen clip not backed by a file)."
+            )
+        result = sa.analyze(file_path, genre=genre, instrument=instrument)
+        header = f"Clip: '{info.get('name', '?')}' (track {track_index}, slot {clip_index})\n"
+        if format.lower() == "json":
+            data = result.to_dict()
+            data["clip_name"] = info.get("name")
+            return json.dumps(data, indent=2)
+        return header + sa.format_report(result)
+    except FileNotFoundError as e:
+        return f"Error: sample file not found on disk: {e}"
+    except Exception as e:
+        logger.error(f"Error analyzing clip spectrum: {str(e)}")
+        return f"Error analyzing clip spectrum: {str(e)}"
+
+
+@mcp.tool()
+def apply_eq_suggestions(
+    ctx: Context,
+    track_index: int,
+    device_index: int,
+    suggestions_json: str = "",
+    from_file: str = "",
+    genre: str = "default",
+    instrument: str = "other",
+    dry_run: bool = True,
+    max_bands: int = 8,
+) -> str:
+    """Apply EQ suggestions to an EQ device (EQ Eight, FabFilter Pro-Q, ...).
+
+    Maps analyzer suggestions onto the device's real band parameters
+    (frequency/gain/Q/filter-type), normalizes them, and either previews
+    (dry_run) or writes them.
+
+    Provide the moves in ONE of two ways:
+    - suggestions_json: the JSON from analyze_audio_file/analyze_clip_spectrum
+      (format='json') — either the full result or just its eq_suggestions list.
+    - from_file: an absolute audio file path to analyze on the fly.
+
+    Parameters:
+    - track_index: Track number (1-based).
+    - device_index: EQ device number on that track (1-based).
+    - suggestions_json: JSON string of suggestions (optional).
+    - from_file: audio file to analyze if suggestions_json is omitted.
+    - genre / instrument: context when analyzing from_file.
+    - dry_run: True = preview only (default), False = actually write params.
+    - max_bands: max EQ bands to use.
+    """
+    try:
+        from MCP_Server import eq_apply
+
+        # 1) Resolve suggestions.
+        suggestions: List[dict] = []
+        if suggestions_json.strip():
+            try:
+                parsed = json.loads(suggestions_json)
+            except json.JSONDecodeError as e:
+                return f"Error: suggestions_json is not valid JSON: {e}"
+            if isinstance(parsed, dict):
+                suggestions = parsed.get("eq_suggestions", [])
+            elif isinstance(parsed, list):
+                suggestions = parsed
+            if not suggestions:
+                return "Error: no eq_suggestions found in suggestions_json."
+        elif from_file.strip():
+            try:
+                from MCP_Server import spectrum_analyzer as sa
+            except ImportError as e:
+                return f"Error: analysis needs numpy. Details: {e}"
+            result = sa.analyze(from_file, genre=genre, instrument=instrument)
+            suggestions = [s.__dict__ if hasattr(s, "__dict__") else s
+                           for s in result.to_dict()["eq_suggestions"]]
+        else:
+            return "Error: provide either suggestions_json or from_file."
+
+        # 2) Read the device's parameters.
+        ableton = get_ableton_connection()
+        ti = _to_zero_based(track_index, "track_index")
+        di = _to_zero_based(device_index, "device_index")
+        info = ableton.send_command("get_device_parameters", {
+            "track_index": ti,
+            "device_index": di,
+            "chain_index": None,
+            "show_all": True,
+        })
+        device_name = info.get("device_name", "?")
+        parameters = info.get("parameters", [])
+
+        # 3) Build the write plan.
+        plan, warnings = eq_apply.plan_eq_application(
+            device_name, parameters, suggestions, max_bands=max_bands
+        )
+        if not plan:
+            msg = f"No EQ moves could be mapped onto '{device_name}'."
+            if warnings:
+                msg += "\n" + "\n".join("  ! " + w for w in warnings)
+            return msg
+
+        header = "{0} EQ plan for '{1}' (track {2}, device {3}):".format(
+            "DRY-RUN — " if dry_run else "Applying", device_name, track_index, device_index
+        )
+        lines = [header]
+        for entry in plan:
+            lines.append(
+                "  band {0} · {1} -> {2} (norm {3})".format(
+                    entry["band"], entry["role"], entry["target"], entry["normalized"]
+                )
+            )
+        for w in warnings:
+            lines.append("  ! " + w)
+
+        # 4) Execute unless dry_run.
+        if dry_run:
+            lines.append("\n(dry_run=True — nothing was changed. Re-run with dry_run=False to apply.)")
+            return "\n".join(lines)
+
+        applied, errors = 0, []
+        for entry in plan:
+            try:
+                ableton.send_command("set_device_parameter", {
+                    "track_index": ti,
+                    "device_index": di,
+                    "chain_index": None,
+                    "parameter_name": entry["param_name"],
+                    "parameter_index": None,
+                    "value": entry["normalized"],
+                })
+                applied += 1
+            except Exception as e:
+                errors.append(f"{entry['param_name']}: {e}")
+
+        lines.append(f"\nApplied {applied}/{len(plan)} parameter writes.")
+        for err in errors:
+            lines.append("  x " + err)
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error applying EQ suggestions: {str(e)}")
+        return f"Error applying EQ suggestions: {str(e)}"
 
 
 # Main execution

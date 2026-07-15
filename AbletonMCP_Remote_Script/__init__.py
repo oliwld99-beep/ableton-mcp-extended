@@ -471,6 +471,11 @@ class AbletonMCP(ControlSurface):
             elif command_type == "get_track_devices":
                 ti = params.get("track_index", 0)
                 response["result"] = self._get_track_devices(ti)
+            elif command_type == "get_clip_sample_path":
+                ti = params.get("track_index", 0)
+                ci = params.get("clip_index", 0)
+                response["result"] = self._get_clip_sample_path(ti, ci)
+            else:
                 response["status"] = "error"
                 response["message"] = "Unknown command: " + command_type
         except Exception as e:
@@ -481,6 +486,42 @@ class AbletonMCP(ControlSurface):
         
         return response
     
+    def _get_clip_sample_path(self, track_index, clip_index):
+        """Return the audio file path and basic info for a session audio clip.
+
+        Reads clip.file_path (Live API) for an audio clip in the given
+        session slot. Used by the spectrum analyzer to locate the sample
+        file on disk for offline FFT analysis.
+        """
+        try:
+            track = self._song.tracks[track_index]
+            if clip_index < 0 or clip_index >= len(track.clip_slots):
+                return {"error": "clip_index out of range"}
+            slot = track.clip_slots[clip_index]
+            if not slot.has_clip:
+                return {"error": "no clip in slot"}
+            clip = slot.clip
+            if not clip.is_audio_clip:
+                return {"error": "clip is not an audio clip", "is_audio": False}
+            file_path = ""
+            try:
+                file_path = clip.file_path
+            except Exception:
+                file_path = ""
+            return {
+                "track_index": track_index,
+                "clip_index": clip_index,
+                "name": clip.name,
+                "is_audio": True,
+                "file_path": file_path,
+                "length": clip.length,
+                "warping": getattr(clip, "warping", None),
+                "gain": getattr(clip, "gain", None),
+            }
+        except Exception as e:
+            self.log_message("Error getting clip sample path: " + str(e))
+            return {"error": str(e)}
+
     # Arrangement helper methods
 
     def _get_arrangement_clip_info(self, clip):
